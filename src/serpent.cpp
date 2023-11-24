@@ -87,8 +87,6 @@ static void linearTransformationInverse(Block& block) {
     X0 = std::rotr(X0, 13);
 }
 
-// TODO get rid of "magic numbers"
-
 static void keyShedule(const Serpent::Key& key, Block (&roundKeys)[Rounds + 1]) {
     uint32_t wBase[WordsInKey + WordsInBlock * (Rounds + 1)];
     std::copy_n(reinterpret_cast<const uint32_t*>(key), WordsInKey, wBase);
