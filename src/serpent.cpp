@@ -34,7 +34,7 @@ static int xorIndices(const Block& block, const size_t* indices) {
 static int S_iteration(const Block& block, size_t i, size_t j, const IndexTable& indexTable, const XorTable& xorTable) {
     int val = 0;
     for (size_t bitN = 0; bitN < SBoxSize; ++bitN)
-        val = (val >> 1) | xorIndices(block, xorTable[j][bitN]);
+        val = (val << 1) | xorIndices(block, xorTable[j][bitN]);
     return indexTable[i][val];
 }
 
