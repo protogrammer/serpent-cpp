@@ -6,6 +6,14 @@
 
 using Block = Serpent::Block;
 
+static const uint32_t Phi = 0x9e3779b9;
+static const size_t Rounds = 32;
+static const size_t SBoxSize = 4;
+static const size_t BlockSize = sizeof(Block);
+static const size_t KeySize = sizeof(Serpent::Key);
+static const size_t WordsInBlock = BlockSize / sizeof(uint32_t);
+static const size_t WordsInKey = KeySize / sizeof(uint32_t);
+
 static int getBit(const Block& block, size_t i) {
     return block[i / 8] & (1 << i % 8) ? 1 : 0;
 }
@@ -25,20 +33,20 @@ static int xorIndices(const Block& block, const size_t* indices) {
 
 static int S_iteration(const Block& block, size_t i, size_t j, const IndexTable& indexTable, const XorTable& xorTable) {
     int val = 0;
-    for (size_t bitN = 0; bitN < 4; ++bitN) // magic SBOX_BIT_SIZE
+    for (size_t bitN = 0; bitN < SBoxSize; ++bitN)
         val = (val >> 1) | xorIndices(block, xorTable[j][bitN]);
     return indexTable[i][val];
 }
 
 static void S(size_t i, const Block &block, Block& newBlock, const IndexTable& indexTable, const XorTable& xorTable) {
-    for (size_t j = 0; j < sizeof block; ++j)  // magic BLOCK_SIZE
+    for (size_t j = 0; j < BlockSize; ++j)
         newBlock[j] = S_iteration(block, i, 2*j, indexTable, xorTable) 
                     | S_iteration(block, i, 2*j+1, indexTable, xorTable) << 4;
 }
 
 
 void applyPermutation(const Block& block, Block& newBlock, const PermutationTable& permutationTable) {
-    for (size_t i = 0; i < sizeof newBlock * 8; ++i)  // magic BLOCK_SIZE
+    for (size_t i = 0; i < BlockSize * 8; ++i)
         setBit(newBlock, i, getBit(block, permutationTable[i]));
 }
 
@@ -81,55 +89,52 @@ static void linearTransformationInverse(Block& block) {
 
 // TODO get rid of "magic numbers"
 
-static const uint32_t PHI = 0x9e3779b9;
-static const size_t ROUNDS = 32;
-
-static void keyShedule(const Serpent::Key& key, Block (&roundKeys)[ROUNDS + 1]) {
-    uint32_t wBase[4 * (ROUNDS + 1) + 8];  // magic SBOX_BIT_SIZE
-    std::copy_n(reinterpret_cast<const uint32_t*>(key), 8, wBase); // magic
-    uint32_t* w = wBase + 8; // magic
-    for (size_t i = 0; i < 4 * (ROUNDS + 1); ++i)
-        w[i] = std::rotl(w[i - 8] ^ w[i - 5] ^ w[i - 3] ^ w[i - 1] ^ PHI ^ i, 11);
-    for (size_t i = 0; i < ROUNDS + 1; ++i)
+static void keyShedule(const Serpent::Key& key, Block (&roundKeys)[Rounds + 1]) {
+    uint32_t wBase[WordsInKey + WordsInBlock * (Rounds + 1)];
+    std::copy_n(reinterpret_cast<const uint32_t*>(key), WordsInKey, wBase);
+    uint32_t* w = wBase + WordsInKey;
+    for (size_t i = 0; i < WordsInBlock * (Rounds + 1); ++i)
+        w[i] = std::rotl(w[i - 8] ^ w[i - 5] ^ w[i - 3] ^ w[i - 1] ^ Phi ^ i, 11);
+    for (size_t i = 0; i < Rounds + 1; ++i)
         S(7 - (i + 4) % 8, reinterpret_cast<const Block*>(w)[i], roundKeys[i], S_INDEX_TABLE, S_XOR_TABLE);
 }
 
 
 static void xorBlockInplace(Block& dst, const Block& src1) {
-    for (size_t i = 0; i < 16; ++i) // magic
+    for (size_t i = 0; i < BlockSize; ++i)
         dst[i] ^= src1[i];
 }
 
 static void xorBlock(Block& dst, const Block& src1, const Block& src2) {
-    for (size_t i = 0; i < 16; ++i) // magic
+    for (size_t i = 0; i < BlockSize; ++i)
         dst[i] = src1[i] ^ src2[i];
 }
 
 void Serpent::encrypt(Block& block) const {
-    Block subkeys[ROUNDS + 1];
+    Block subkeys[Rounds + 1];
     keyShedule(key, subkeys);
 
     Block temp;
     applyPermutation(block, temp, IP_PERM_TABLE);
-    for (int i = 0; i < ROUNDS; ++i) {
+    for (int i = 0; i < Rounds; ++i) {
         xorBlock(block, temp, subkeys[i]);
         S(i % 8, block, temp, S_INDEX_TABLE, S_XOR_TABLE);
         linearTransformation(temp);
     }
-    xorBlockInplace(temp, subkeys[32]);
+    xorBlockInplace(temp, subkeys[Rounds]);
     applyPermutation(temp, block, FP_PERM_TABLE);
 }
 
 void Serpent::decrypt(Block& block) const {
-    Block subkeys[ROUNDS + 1];
+    Block subkeys[Rounds + 1];
     keyShedule(key, subkeys);
 
     Block temp;
     applyPermutation(block, temp, FP_PERM_TABLE);
     xorBlockInplace(temp, subkeys[32]);
-    for (int i = 0; i < ROUNDS; ++i) {
-        xorBlock(block, temp, subkeys[ROUNDS - i - 1]);
-        S((ROUNDS - i - 1) % 8, block, temp, I_INDEX_TABLE, I_XOR_TABLE);
+    for (int i = 0; i < Rounds; ++i) {
+        xorBlock(block, temp, subkeys[Rounds - i - 1]);
+        S((Rounds - i - 1) % 8, block, temp, I_INDEX_TABLE, I_XOR_TABLE);
         linearTransformation(temp);
     }
     applyPermutation(temp, block, IP_PERM_TABLE);
