@@ -34,15 +34,19 @@ static int xorIndices(const Block& block, const size_t* indices) {
 
 static int S_iteration(const Block& block, size_t i, size_t j, const IndexTable& indexTable, const XorTable& xorTable) {
     int val = 0;
-    for (size_t bitN = 0; bitN < SBoxSize; ++bitN)
-        val = (val >> 1) | xorIndices(block, xorTable[j][bitN]);
+    for (size_t bitN = 0; bitN < SBoxSize; ++bitN) {
+        val = (val << 1) | xorIndices(block, xorTable[j][bitN]);
+    }
+    std::cout << "SBox iteration(i=" << i << ", j=" << j << ", val=" << val << ", res=" << indexTable[i][val] << ")\n";
     return indexTable[i][val];
 }
 
 static void S(size_t i, const Block &block, Block& newBlock, const IndexTable& indexTable, const XorTable& xorTable) {
-    for (size_t j = 0; j < BlockSize; ++j)
+    for (size_t j = 0; j < BlockSize; ++j) {
         newBlock[j] = S_iteration(block, i, 2*j, indexTable, xorTable) 
                     | S_iteration(block, i, 2*j+1, indexTable, xorTable) << 4;
+        std::cout << "New value: " << (int)newBlock[j] << std::endl;
+    }
 }
 
 
