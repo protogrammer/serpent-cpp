@@ -3,6 +3,7 @@
 #include "serpent_tables.hpp"
 #include <bit>  // rotl, rotr
 #include <algorithm> // copy_n, copy, fill
+#include <iostream> // cout, endl, hex
 
 using Block = Serpent::Block;
 
@@ -108,19 +109,37 @@ static void xorBlock(Block& dst, const Block& src1, const Block& src2) {
         dst[i] = src1[i] ^ src2[i];
 }
 
+static void printBlock(const Block& block, const std::string& name) {
+    std::cout << name << ':';
+    for (auto x: block)
+        std::cout << ' ' << (int)x;
+    std::cout << std::endl;
+}
+
 void Serpent::encrypt(Block& block) const {
     Block subkeys[Rounds + 1];
     keyShedule(key, subkeys);
 
+    std::cout << std::hex;
+    printBlock(block, "Initial block");
+
     Block temp;
     applyPermutation(block, temp, IP_PERM_TABLE);
+    printBlock(temp, "Block after IP");
     for (int i = 0; i < Rounds; ++i) {
+        printBlock(subkeys[i], "Subkey #" + std::to_string(i + 1));
         xorBlock(block, temp, subkeys[i]);
+        printBlock(block, "Block after xor");
         S(i % 8, block, temp, S_INDEX_TABLE, S_XOR_TABLE);
+        printBlock(temp, "Block after S");
         linearTransformation(temp);
+        printBlock(temp, "Block after LT");
     }
+    printBlock(subkeys[Rounds], "Subkey #" + std::to_string(Rounds + 1));
     xorBlockInplace(temp, subkeys[Rounds]);
+    printBlock(temp, "Block after xor");
     applyPermutation(temp, block, FP_PERM_TABLE);
+    printBlock(block, "Final block");
 }
 
 void Serpent::decrypt(Block& block) const {
