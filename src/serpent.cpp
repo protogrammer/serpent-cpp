@@ -37,7 +37,7 @@ static int S_iteration(const Block& block, size_t i, size_t j, const IndexTable&
     for (size_t bitN = 0; bitN < SBoxSize; ++bitN) {
         val = (val << 1) | xorIndices(block, xorTable[j][bitN]);
     }
-    std::cout << "SBox iteration(i=" << i << ", j=" << j << ", val=" << val << ", res=" << indexTable[i][val] << ")\n";
+    // std::cout << "SBox iteration(i=" << i << ", j=" << j << ", val=" << val << ", res=" << indexTable[i][val] << ")\n";
     return indexTable[i][val];
 }
 
@@ -45,7 +45,7 @@ static void S(size_t i, const Block &block, Block& newBlock, const IndexTable& i
     for (size_t j = 0; j < BlockSize; ++j) {
         newBlock[j] = S_iteration(block, i, 2*j, indexTable, xorTable) 
                     | S_iteration(block, i, 2*j+1, indexTable, xorTable) << 4;
-        std::cout << "New value: " << (int)newBlock[j] << std::endl;
+        // std::cout << "New value: " << (int)newBlock[j] << std::endl;
     }
 }
 
@@ -124,6 +124,10 @@ void Serpent::encrypt(Block& block) const {
     Block subkeys[Rounds + 1];
     keyShedule(key, subkeys);
 
+    std::cout << "======================================================================\n";
+    std::cout << "=                             ENCRYPT                                =\n";
+    std::cout << "======================================================================\n";
+
     std::cout << std::hex;
     printBlock(block, "Initial block");
 
@@ -150,15 +154,32 @@ void Serpent::decrypt(Block& block) const {
     Block subkeys[Rounds + 1];
     keyShedule(key, subkeys);
 
+
+
+    std::cout << "======================================================================\n";
+    std::cout << "=                             DECRYPT                                =\n";
+    std::cout << "======================================================================\n";
+
+    std::cout << std::hex;
+    printBlock(block, "Initial block");
+
     Block temp;
     applyPermutation(block, temp, FP_PERM_TABLE);
-    xorBlockInplace(temp, subkeys[32]);
+    printBlock(temp, "Block after FP");
+    xorBlockInplace(temp, subkeys[Rounds]);
+    printBlock(subkeys[Rounds], "Subkey #" + std::to_string(Rounds + 1));
+    printBlock(temp, "Block after xor");
     for (int i = 0; i < Rounds; ++i) {
-        xorBlock(block, temp, subkeys[Rounds - i - 1]);
+        linearTransformationInverse(temp);
+        printBlock(temp, "Block after LTI");
         S((Rounds - i - 1) % 8, block, temp, I_INDEX_TABLE, I_XOR_TABLE);
-        linearTransformation(temp);
+        printBlock(block, "Block after S");
+        printBlock(subkeys[i], "Subkey #" + std::to_string(Rounds - i));
+        xorBlock(block, temp, subkeys[Rounds - i - 1]);
+        printBlock(temp, "Block after xor");
     }
     applyPermutation(temp, block, IP_PERM_TABLE);
+    printBlock(block, "Final block");
 }
 
 Serpent::Serpent(const Key256& key) {

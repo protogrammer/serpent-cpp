@@ -10,6 +10,7 @@ int main() {
     std::copy_n(plaintext, sizeof block, block);
 
     serpent.encrypt(block);
+    serpent.decrypt(block);
 
     return 0;
 }
