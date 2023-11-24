@@ -129,7 +129,7 @@ void Serpent::decrypt(Block& block) const {
 
     Block temp;
     applyPermutation(block, temp, FP_PERM_TABLE);
-    xorBlockInplace(temp, subkeys[32]);
+    xorBlockInplace(temp, subkeys[Rounds]);
     for (int i = 0; i < Rounds; ++i) {
         linearTransformationInverse(temp);
         S((Rounds - i - 1) % 8, temp, block, I_INDEX_TABLE, I_XOR_TABLE);
