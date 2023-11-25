@@ -3,7 +3,7 @@
 ## Structure
 
 - include: **serpent.hpp** 
-- src: **serpent.cpp** -- serpent core implementation
+- src: **serpent.cpp** — serpent core implementation
 - tables: serpent tables
 - test
     - simple — basic invertability test
