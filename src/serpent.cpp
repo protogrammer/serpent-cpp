@@ -1,9 +1,11 @@
 #include "serpent.hpp"
 
-#include "serpent_tables.hpp"
 #include <bit>  // rotl, rotr
 #include <algorithm> // copy_n, copy, fill
 #include <iostream> // cout, endl, hex
+#include <cassert>
+
+#include "serpent_tables.hpp"
 
 using Block = Serpent::Block;
 
@@ -29,30 +31,39 @@ static int xorIndices(const Block& block, const size_t* indices) {
     int sum = 0;
     while (*indices != END)
         sum ^= getBit(block, *indices++);
+    assert(sum == 0 || sum == 1);
     return sum;
 }
 
+static int debugRoundIndex = 0;
+
 static int S_iteration(const Block& block, size_t i, size_t j, const IndexTable& indexTable, const XorTable& xorTable) {
-    int val = 0;
-    for (size_t bitN = 0; bitN < SBoxSize; ++bitN) {
-        val = (val << 1) | xorIndices(block, xorTable[j][bitN]);
-    }
-    // std::cout << "SBox iteration(i=" << i << ", j=" << j << ", val=" << val << ", res=" << indexTable[i][val] << ")\n";
+    unsigned int val = 0;
+    for (size_t bitN = 0; bitN < SBoxSize; ++bitN)
+        val |= xorIndices(block, xorTable[j][bitN]) << bitN;
+    assert(val < 16);
+    if (debugRoundIndex == Rounds - 1)
+        std::cout << "SBox iteration(i=" << i << ", j=" << j << ", val=" << val << ", res=" << indexTable[i][val] << ")\n";
     return indexTable[i][val];
 }
 
 static void S(size_t i, const Block &block, Block& newBlock, const IndexTable& indexTable, const XorTable& xorTable) {
     for (size_t j = 0; j < BlockSize; ++j) {
-        newBlock[j] = S_iteration(block, i, 2*j, indexTable, xorTable) 
+        newBlock[j] = S_iteration(block, i, 2*j, indexTable, xorTable)
                     | S_iteration(block, i, 2*j+1, indexTable, xorTable) << 4;
-        // std::cout << "New value: " << (int)newBlock[j] << std::endl;
+        if (debugRoundIndex == Rounds - 1) std::cout << "Value[" << j << "]: " << (int)block[j] << " -> " << (int)newBlock[j] << std::endl;
     }
 }
 
 
-void applyPermutation(const Block& block, Block& newBlock, const PermutationTable& permutationTable) {
+static void applyPermutation(const Block& block, Block& newBlock, const PermutationTable& permutationTable) {
     for (size_t i = 0; i < BlockSize * 8; ++i)
         setBit(newBlock, i, getBit(block, permutationTable[i]));
+}
+
+static void applyPermutationInverse(const Block& block, Block& newBlock, const PermutationTable& permutationTable) {
+    for (size_t i = 0; i < BlockSize * 8; ++i)
+        setBit(newBlock, permutationTable[i], getBit(block, i));
 }
 
 
@@ -121,6 +132,8 @@ static void printBlock(const Block& block, const std::string& name) {
 }
 
 void Serpent::encrypt(Block& block) const {
+    debugRoundIndex = 0;
+
     Block subkeys[Rounds + 1];
     keyShedule(key, subkeys);
 
@@ -128,19 +141,20 @@ void Serpent::encrypt(Block& block) const {
     std::cout << "=                             ENCRYPT                                =\n";
     std::cout << "======================================================================\n";
 
-    std::cout << std::hex;
+    std::cout << std::dec;
     printBlock(block, "Initial block");
 
     Block temp;
     applyPermutation(block, temp, IP_PERM_TABLE);
     printBlock(temp, "Block after IP");
     for (int i = 0; i < Rounds; ++i) {
+        debugRoundIndex = i;
         printBlock(subkeys[i], "Subkey #" + std::to_string(i + 1));
         xorBlock(block, temp, subkeys[i]);
         printBlock(block, "Block after xor");
         S(i % 8, block, temp, S_INDEX_TABLE, S_XOR_TABLE);
         printBlock(temp, "Block after S");
-        linearTransformation(temp);
+        linearTransformation(temp); // isn't it included into SBox????
         printBlock(temp, "Block after LT");
     }
     printBlock(subkeys[Rounds], "Subkey #" + std::to_string(Rounds + 1));
@@ -151,6 +165,8 @@ void Serpent::encrypt(Block& block) const {
 }
 
 void Serpent::decrypt(Block& block) const {
+    debugRoundIndex = 0;
+
     Block subkeys[Rounds + 1];
     keyShedule(key, subkeys);
 
@@ -160,25 +176,26 @@ void Serpent::decrypt(Block& block) const {
     std::cout << "=                             DECRYPT                                =\n";
     std::cout << "======================================================================\n";
 
-    std::cout << std::hex;
+    std::cout << std::dec;
     printBlock(block, "Initial block");
 
     Block temp;
-    applyPermutation(block, temp, FP_PERM_TABLE);
+    applyPermutationInverse(block, temp, FP_PERM_TABLE);
     printBlock(temp, "Block after FP");
     xorBlockInplace(temp, subkeys[Rounds]);
     printBlock(subkeys[Rounds], "Subkey #" + std::to_string(Rounds + 1));
     printBlock(temp, "Block after xor");
     for (int i = 0; i < Rounds; ++i) {
-        linearTransformationInverse(temp);
+        debugRoundIndex = Rounds - i - 1;
+        linearTransformationInverse(temp); // ???
         printBlock(temp, "Block after LTI");
-        S((Rounds - i - 1) % 8, block, temp, I_INDEX_TABLE, I_XOR_TABLE);
+        S((Rounds - i - 1) % 8, temp, block, I_INDEX_TABLE, I_XOR_TABLE);
         printBlock(block, "Block after S");
         printBlock(subkeys[i], "Subkey #" + std::to_string(Rounds - i));
         xorBlock(block, temp, subkeys[Rounds - i - 1]);
         printBlock(temp, "Block after xor");
     }
-    applyPermutation(temp, block, IP_PERM_TABLE);
+    applyPermutationInverse(temp, block, IP_PERM_TABLE);
     printBlock(block, "Final block");
 }
 
