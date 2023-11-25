@@ -42,7 +42,6 @@ static void sBox(size_t i, const Block &block, Block& newBlock, const IndexTable
                     | table[i][block[j] >> 4] << 4;
 }
 
-
 static void applyPermutation(const Block& src, Block& dst, const PermutationTable& table) {
     for (size_t i = 0; i < BlockSize * 8; ++i)
         setBit(dst, i, getBit(src, table[i]));
@@ -62,7 +61,6 @@ static void keyShedule(const Serpent::Key& key, Block (&roundKeys)[Rounds + 1]) 
     for (size_t i = 0; i < Rounds + 1; ++i)
         sBox(7 - (i + 4) % 8, reinterpret_cast<const Block*>(w)[i], roundKeys[i], STable);
 }
-
 
 static void xorBlockInplace(Block& dst, const Block& src) {
     for (size_t i = 0; i < BlockSize; ++i)
