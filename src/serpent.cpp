@@ -1,8 +1,9 @@
 #include "serpent.hpp"
 
-#include "serpent_tables.hpp"
 #include <bit>  // rotl, rotr
 #include <algorithm> // copy_n, copy, fill
+
+#include "serpent_tables.hpp"
 
 using Block = Serpent::Block;
 
@@ -23,7 +24,6 @@ static void setBit(Block& block, size_t i, int value) {
     else block[i / 8] &= ~(1 << i % 8);
 }
 
-
 static int xorIndices(const Block& block, const size_t* indices) {
     int sum = 0;
     while (*indices != END)
@@ -34,7 +34,7 @@ static int xorIndices(const Block& block, const size_t* indices) {
 static int S_iteration(const Block& block, size_t i, size_t j, const IndexTable& indexTable, const XorTable& xorTable) {
     int val = 0;
     for (size_t bitN = 0; bitN < SBoxSize; ++bitN)
-        val = (val << 1) | xorIndices(block, xorTable[j][bitN]);
+        val |= xorIndices(block, xorTable[j][bitN]) << bitN;
     return indexTable[i][val];
 }
 
@@ -45,9 +45,14 @@ static void S(size_t i, const Block &block, Block& newBlock, const IndexTable& i
 }
 
 
-void applyPermutation(const Block& block, Block& newBlock, const PermutationTable& permutationTable) {
+static void applyPermutation(const Block& block, Block& newBlock, const PermutationTable& permutationTable) {
     for (size_t i = 0; i < BlockSize * 8; ++i)
         setBit(newBlock, i, getBit(block, permutationTable[i]));
+}
+
+static void applyPermutationInverse(const Block& block, Block& newBlock, const PermutationTable& permutationTable) {
+    for (size_t i = 0; i < BlockSize * 8; ++i)
+        setBit(newBlock, permutationTable[i], getBit(block, i));
 }
 
 
@@ -128,14 +133,14 @@ void Serpent::decrypt(Block& block) const {
     keyShedule(key, subkeys);
 
     Block temp;
-    applyPermutation(block, temp, FP_PERM_TABLE);
+    applyPermutationInverse(block, temp, FP_PERM_TABLE);
     xorBlockInplace(temp, subkeys[Rounds]);
     for (int i = 0; i < Rounds; ++i) {
         linearTransformationInverse(temp);
         S((Rounds - i - 1) % 8, temp, block, I_INDEX_TABLE, I_XOR_TABLE);
         xorBlock(temp, block, subkeys[Rounds - i - 1]);
     }
-    applyPermutation(temp, block, IP_PERM_TABLE);
+    applyPermutationInverse(temp, block, IP_PERM_TABLE);
 }
 
 Serpent::Serpent(const Key256& key) {
