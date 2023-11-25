@@ -6,7 +6,7 @@
 - src: **serpent.cpp** -- serpent core implementation
 - tables: serpent tables
 - test
-    - simple -- basic invertability test
+    - simple — basic invertability test
 
 ## Building
 
