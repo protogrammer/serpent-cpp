@@ -2,8 +2,9 @@
 #include <algorithm>
 #include "serpent.hpp"
 
-const Serpent::Key key = { 0xc3 };
+const Serpent::Key key = { 0 };
 const char* plaintext = "0123456789abcdef";
+const unsigned char zeros[16] = { 0 };
 
 int main() {
     std::cout << std::hex;
@@ -15,7 +16,7 @@ int main() {
 
     Serpent serpent(key);
     Serpent::Block block;
-    std::copy_n(plaintext, 16, block);
+    std::copy_n(zeros, 16, block);
 
     std::cout << "Block before encryption:";
     for (auto x: block)

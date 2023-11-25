@@ -1,6 +1,6 @@
 #include "serpent.hpp"
 
-#include <bit>  // rotl, rotr
+#include <bit>  // rotl
 #include <algorithm>  // copy_n, copy, fill
 
 #include "serpent_tables.hpp"
@@ -26,70 +26,31 @@ static void setBit(Block& block, size_t i, int value) {
 
 static int xorIndices(const Block& block, const size_t* indices) {
     int sum = 0;
-    while (*indices != END)
+    while (*indices != End)
         sum ^= getBit(block, *indices++);
     return sum;
 }
 
-static int S_iteration(const Block& block, size_t i, size_t j, const IndexTable& indexTable, const XorTable& xorTable) {
-    int val = 0;
-    for (size_t bitN = 0; bitN < SBoxSize; ++bitN)
-        val |= xorIndices(block, xorTable[j][bitN]) << bitN;
-    return indexTable[i][val];
+static void linearTransformation(const Block& src, Block& dst, const XorTable& table) {
+    for (size_t i = 0; i < BlockSize*8; ++i)
+        setBit(dst, i, xorIndices(src, table[i]));
 }
 
-static void S(size_t i, const Block &block, Block& newBlock, const IndexTable& indexTable, const XorTable& xorTable) {
+static void sBox(size_t i, const Block &block, Block& newBlock, const IndexTable& table) {
     for (size_t j = 0; j < BlockSize; ++j)
-        newBlock[j] = S_iteration(block, i, 2*j, indexTable, xorTable) 
-                    | S_iteration(block, i, 2*j+1, indexTable, xorTable) << 4;
+        newBlock[j] = table[i][block[j] & 0b1111]
+                    | table[i][block[j] >> 4] << 4;
 }
 
 
-static void applyPermutation(const Block& block, Block& newBlock, const PermutationTable& permutationTable) {
+static void applyPermutation(const Block& src, Block& dst, const PermutationTable& table) {
     for (size_t i = 0; i < BlockSize * 8; ++i)
-        setBit(newBlock, i, getBit(block, permutationTable[i]));
+        setBit(dst, i, getBit(src, table[i]));
 }
 
-static void applyPermutationInverse(const Block& block, Block& newBlock, const PermutationTable& permutationTable) {
+static void applyPermutationInverse(const Block& src, Block& dst, const PermutationTable& table) {
     for (size_t i = 0; i < BlockSize * 8; ++i)
-        setBit(newBlock, permutationTable[i], getBit(block, i));
-}
-
-
-static void linearTransformation(Block& block) {
-    auto& X0 = *reinterpret_cast<uint32_t*>(block);
-    auto& X1 = (&X0)[1];
-    auto& X2 = (&X0)[2];
-    auto& X3 = (&X0)[3];
-
-    X0 = std::rotl(X0, 13);
-    X2 = std::rotl(X2, 3);
-    X1 = X1 ^ X0 ^ X2;
-    X3 = X3 ^ X2 ^ (X0 << 3);
-    X1 = std::rotl(X1, 1);
-    X3 = std::rotl(X3, 7);
-    X0 = X0 ^ X1 ^ X3;
-    X2 = X2 ^ X3 ^ (X1 << 7);
-    X0 = std::rotl(X0, 5);
-    X2 = std::rotl(X2, 22);
-}
-
-static void linearTransformationInverse(Block& block) {
-    auto& X0 = *reinterpret_cast<uint32_t*>(block);
-    auto& X1 = (&X0)[1];
-    auto& X2 = (&X0)[2];
-    auto& X3 = (&X0)[3];
-
-    X2 = std::rotr(X2, 22);
-    X0 = std::rotr(X0, 5);
-    X2 = X2 ^ X3 ^ (X1 << 7);
-    X0 = X0 ^ X1 ^ X3;
-    X3 = std::rotr(X3, 7);
-    X1 = std::rotr(X1, 1);
-    X3 = X3 ^ X2 ^ (X0 << 3);
-    X1 = X1 ^ X0 ^ X2;
-    X2 = std::rotr(X2, 3);
-    X0 = std::rotr(X0, 13);
+        setBit(dst, table[i], getBit(src, i));
 }
 
 static void keyShedule(const Serpent::Key& key, Block (&roundKeys)[Rounds + 1]) {
@@ -99,18 +60,13 @@ static void keyShedule(const Serpent::Key& key, Block (&roundKeys)[Rounds + 1]) 
     for (size_t i = 0; i < WordsInBlock * (Rounds + 1); ++i)
         w[i] = std::rotl(w[i - 8] ^ w[i - 5] ^ w[i - 3] ^ w[i - 1] ^ Phi ^ i, 11);
     for (size_t i = 0; i < Rounds + 1; ++i)
-        S(7 - (i + 4) % 8, reinterpret_cast<const Block*>(w)[i], roundKeys[i], S_INDEX_TABLE, S_XOR_TABLE);
+        sBox(7 - (i + 4) % 8, reinterpret_cast<const Block*>(w)[i], roundKeys[i], STable);
 }
 
 
-static void xorBlockInplace(Block& dst, const Block& src1) {
+static void xorBlockInplace(Block& dst, const Block& src) {
     for (size_t i = 0; i < BlockSize; ++i)
-        dst[i] ^= src1[i];
-}
-
-static void xorBlock(Block& dst, const Block& src1, const Block& src2) {
-    for (size_t i = 0; i < BlockSize; ++i)
-        dst[i] = src1[i] ^ src2[i];
+        dst[i] ^= src[i];
 }
 
 void Serpent::encrypt(Block& block) const {
@@ -118,14 +74,14 @@ void Serpent::encrypt(Block& block) const {
     keyShedule(key, subkeys);
 
     Block temp;
-    applyPermutation(block, temp, IP_PERM_TABLE);
+    applyPermutation(block, temp, IPTable);
     for (int i = 0; i < Rounds; ++i) {
-        xorBlock(block, temp, subkeys[i]);
-        S(i % 8, block, temp, S_INDEX_TABLE, S_XOR_TABLE);
-        linearTransformation(temp);
+        xorBlockInplace(temp, subkeys[i]);
+        sBox(i % 8, temp, block, STable);
+        linearTransformation(block, temp, LTTable);
     }
     xorBlockInplace(temp, subkeys[Rounds]);
-    applyPermutation(temp, block, FP_PERM_TABLE);
+    applyPermutation(temp, block, FPTable);
 }
 
 void Serpent::decrypt(Block& block) const {
@@ -133,14 +89,14 @@ void Serpent::decrypt(Block& block) const {
     keyShedule(key, subkeys);
 
     Block temp;
-    applyPermutationInverse(block, temp, FP_PERM_TABLE);
+    applyPermutationInverse(block, temp, FPTable);
     xorBlockInplace(temp, subkeys[Rounds]);
     for (int i = 0; i < Rounds; ++i) {
-        linearTransformationInverse(temp);
-        S((Rounds - i - 1) % 8, temp, block, I_INDEX_TABLE, I_XOR_TABLE);
-        xorBlock(temp, block, subkeys[Rounds - i - 1]);
+        linearTransformation(temp, block, LTITable);
+        sBox((Rounds - i - 1) % 8, block, temp, ITable);
+        xorBlockInplace(temp, subkeys[Rounds - i - 1]);
     }
-    applyPermutationInverse(temp, block, IP_PERM_TABLE);
+    applyPermutationInverse(temp, block, IPTable);
 }
 
 Serpent::Serpent(const Key256& key) {
