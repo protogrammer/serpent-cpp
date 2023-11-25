@@ -31,23 +31,23 @@ static int xorIndices(const Block& block, const size_t* indices) {
     return sum;
 }
 
-static void linearTransformation(const Block& src, Block& dst, const XorTable& table) {
+static void linearTransformation(Block& dst, const Block& src, const XorTable& table) {
     for (size_t i = 0; i < BlockSize*8; ++i)
         setBit(dst, i, xorIndices(src, table[i]));
 }
 
-static void sBox(size_t i, const Block &block, Block& newBlock, const IndexTable& table) {
+static void sBox(size_t i, Block& dst, const Block &src, const IndexTable& table) {
     for (size_t j = 0; j < BlockSize; ++j)
-        newBlock[j] = table[i][block[j] & 0b1111]
-                    | table[i][block[j] >> 4] << 4;
+        dst[j] = table[i][src[j] & 0b1111]
+               | table[i][src[j] >> 4] << 4;
 }
 
-static void applyPermutation(const Block& src, Block& dst, const PermutationTable& table) {
+static void applyPermutation(Block& dst, const Block& src, const PermutationTable& table) {
     for (size_t i = 0; i < BlockSize * 8; ++i)
         setBit(dst, i, getBit(src, table[i]));
 }
 
-static void applyPermutationInverse(const Block& src, Block& dst, const PermutationTable& table) {
+static void applyPermutationInverse(Block& dst, const Block& src, const PermutationTable& table) {
     for (size_t i = 0; i < BlockSize * 8; ++i)
         setBit(dst, table[i], getBit(src, i));
 }
@@ -59,7 +59,7 @@ static void keyShedule(const Serpent::Key& key, Block (&roundKeys)[Rounds + 1]) 
     for (size_t i = 0; i < WordsInBlock * (Rounds + 1); ++i)
         w[i] = std::rotl(w[i - 8] ^ w[i - 5] ^ w[i - 3] ^ w[i - 1] ^ Phi ^ i, 11);
     for (size_t i = 0; i < Rounds + 1; ++i)
-        sBox(7 - (i + 4) % 8, reinterpret_cast<const Block*>(w)[i], roundKeys[i], STable);
+        sBox(7 - (i + 4) % 8, roundKeys[i], reinterpret_cast<const Block*>(w)[i], STable);
 }
 
 static void xorBlockInplace(Block& dst, const Block& src) {
@@ -72,14 +72,14 @@ void Serpent::encrypt(Block& block) const {
     keyShedule(key, subkeys);
 
     Block temp;
-    applyPermutation(block, temp, IPTable);
+    applyPermutation(temp, block, IPTable);
     for (int i = 0; i < Rounds; ++i) {
         xorBlockInplace(temp, subkeys[i]);
-        sBox(i % 8, temp, block, STable);
-        linearTransformation(block, temp, LTTable);
+        sBox(i % 8, block, temp, STable);
+        linearTransformation(temp, block, LTTable);
     }
     xorBlockInplace(temp, subkeys[Rounds]);
-    applyPermutation(temp, block, FPTable);
+    applyPermutation(block, temp, FPTable);
 }
 
 void Serpent::decrypt(Block& block) const {
@@ -87,14 +87,14 @@ void Serpent::decrypt(Block& block) const {
     keyShedule(key, subkeys);
 
     Block temp;
-    applyPermutationInverse(block, temp, FPTable);
+    applyPermutationInverse(temp, block, FPTable);
     xorBlockInplace(temp, subkeys[Rounds]);
     for (int i = 0; i < Rounds; ++i) {
-        linearTransformation(temp, block, LTITable);
-        sBox((Rounds - i - 1) % 8, block, temp, ITable);
+        linearTransformation(block, temp, LTITable);
+        sBox((Rounds - i - 1) % 8, temp, block, ITable);
         xorBlockInplace(temp, subkeys[Rounds - i - 1]);
     }
-    applyPermutationInverse(temp, block, IPTable);
+    applyPermutationInverse(block, temp, IPTable);
 }
 
 Serpent::Serpent(const Key256& key) {
