@@ -1,7 +1,7 @@
 #include "serpent.hpp"
 
 #include <bit>  // rotl, rotr
-#include <algorithm> // copy_n, copy, fill
+#include <algorithm>  // copy_n, copy, fill
 
 #include "serpent_tables.hpp"
 
