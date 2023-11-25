@@ -3,11 +3,11 @@
 
 #include <endian.h>  // __BYTE_ORDER, __LITTLE_ENDIAN
 
+#include <cstdint> // uint8_t
+
 #if __BYTE_ORDER != __LITTLE_ENDIAN
 #error "Serpent is implemented only for little-endian systems"
 #endif
-
-#include <cstdint> // uint8_t
 
 class Serpent final {
 public:
