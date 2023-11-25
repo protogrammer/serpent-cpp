@@ -36,7 +36,7 @@ static void linearTransformation(Block& dst, const Block& src, const XorTable& t
         setBit(dst, i, xorIndices(src, table[i]));
 }
 
-static void sBox(size_t i, Block& dst, const Block &src, const IndexTable& table) {
+static void sBox(size_t i, Block& dst, const Block& src, const IndexTable& table) {
     for (size_t j = 0; j < BlockSize; ++j)
         dst[j] = table[i][src[j] & 0b1111]
                | table[i][src[j] >> 4] << 4;
