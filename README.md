@@ -12,7 +12,7 @@
 
 You need cmake, make and compiler supporting C++20 installed
 ```sh
-mkdir build
+mkdir -p build
 cd build
 cmake ..
 make
@@ -20,5 +20,5 @@ make
 
 Now you can run test:
 ```sh
-./test/basic-usage/basic_usage
+./test/simple/simple_test
 ```
