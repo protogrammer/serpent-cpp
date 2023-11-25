@@ -1,7 +1,8 @@
 #include "serpent.hpp"
 
+#include <algorithm>  // copy, copy_n, fill
 #include <bit>  // rotl
-#include <algorithm>  // copy_n, copy, fill
+#include <cstdint>  // uint32_t
 
 #include "serpent_tables.hpp"
 
@@ -23,7 +24,7 @@ static void setBit(Block& block, size_t i, int value) {
     else block[i / 8] &= ~(1 << i % 8);
 }
 
-static int xorIndices(const Block& block, const size_t* indices) {
+static int xorIndices(const Block& block, const unsigned char* indices) {
     int sum = 0;
     while (*indices != End)
         sum ^= getBit(block, *indices++);

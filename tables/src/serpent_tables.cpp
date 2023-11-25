@@ -44,7 +44,7 @@ const IndexTable ITable = {
     {3, 0, 6, 13, 9, 14, 15, 8, 5, 12, 11, 7, 10, 1, 4, 2},
 };
 
-const size_t End = 0xff;
+const unsigned char End = 0xff;
 
 const XorTable LTTable = {
     {16, 52, 56, 70, 83, 94, 105, End},

@@ -3,20 +3,18 @@
 
 #include <endian.h>  // __BYTE_ORDER, __LITTLE_ENDIAN
 
-#include <cstdint> // uint8_t
-
 #if __BYTE_ORDER != __LITTLE_ENDIAN
 #error "Serpent is implemented only for little-endian systems"
 #endif
 
 class Serpent final {
 public:
-    using Key256 = uint8_t[256/8];
-    using Key192 = uint8_t[192/8];
-    using Key128 = uint8_t[128/8];
+    using Key256 = unsigned char[256/8];
+    using Key192 = unsigned char[192/8];
+    using Key128 = unsigned char[128/8];
     using Key = Key256;
 
-    using Block = uint8_t[128/8];
+    using Block = unsigned char[128/8];
 
 private:
     Key key;
