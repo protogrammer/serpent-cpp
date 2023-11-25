@@ -192,7 +192,7 @@ void Serpent::decrypt(Block& block) const {
         S((Rounds - i - 1) % 8, temp, block, I_INDEX_TABLE, I_XOR_TABLE);
         printBlock(block, "Block after S");
         printBlock(subkeys[i], "Subkey #" + std::to_string(Rounds - i));
-        xorBlock(block, temp, subkeys[Rounds - i - 1]);
+        xorBlock(temp, block, subkeys[Rounds - i - 1]);
         printBlock(temp, "Block after xor");
     }
     applyPermutationInverse(temp, block, IP_PERM_TABLE);
