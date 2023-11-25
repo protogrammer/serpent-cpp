@@ -9,7 +9,6 @@ using Block = Serpent::Block;
 
 static const uint32_t Phi = 0x9e3779b9;
 static const size_t Rounds = 32;
-static const size_t SBoxSize = 4;
 static const size_t BlockSize = sizeof(Block);
 static const size_t KeySize = sizeof(Serpent::Key);
 static const size_t WordsInBlock = BlockSize / sizeof(uint32_t);
